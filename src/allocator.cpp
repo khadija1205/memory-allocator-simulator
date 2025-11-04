@@ -244,60 +244,78 @@ int MemoryAllocator::allocateFirstFit(int size) {
 int MemoryAllocator :: allocateBestFit(int size){
     totalAllocations++;
 
-    // Finding smallest block that fits
-    int bestIndex = -1;
+    FreeListNode *current = freeListHead;
+    FreeListNode *bestNode = nullptr;
     int smallestSize = -1;
 
+    while(current != nullptr){
+        MemoryBlock *block = current->block;
 
-    // checking all the blocks
-    for (int i = 0; i < blocks.size();i++){
-        if (blocks[i].isFree && blocks[i].size >= size){
-            // first fit found
-            if(bestIndex == -1){
-                bestIndex = i;
-                smallestSize = blocks[i].size;
-            }
-
-            // if better one
-            else if(blocks[i].size < smallestSize){
-                bestIndex = i;
-                smallestSize = blocks[i].size;
+        if(block->size >= size){
+            if(bestNode == nullptr || block->size < smallestSize){
+                bestNode = current;
+                smallestSize = block->size;
             }
         }
+
+        current = current->next;
     }
 
 
-    if(bestIndex == -1){
+    // no suitable blocks found
+    if(bestNode == nullptr){
         failedAllocations++;
-        cout << "Cannot Allocate" << size << " KB! " << endl;
+        cout << "Cannot Allocate" << size << "KB!" << endl;
         return -1;
     }
 
-    // use the best block
-    int i = bestIndex;
+    MemoryBlock *block = bestNode->block;
     int blockId = nextId++;
 
 
-    // split the block
-    if(blocks[i].size > size){
-        int remainingSize = blocks[i].size - size;
-        int remainingStart = blocks[i].start + size;
+    if(block->size > size){
+        int blockIndex = -1;
+        for (int i = 0; i < blocks.size();i++){
+            if(&blocks[i] == block){
+                blockIndex = i;
+                break;
+            }
+        }
 
+
+        // Save original values
+        int originalSize = blocks[blockIndex].size;
+        int originalStart = blocks[blockIndex].start;
+
+        // Mark as allocated
+        blocks[blockIndex].isFree = false;
+        blocks[blockIndex].id = blockId;
+        blocks[blockIndex].size = size;
+
+
+        // Create leftover block
+        int remainingSize = originalSize - size;
+        int remainingStart = originalStart + size;
 
         MemoryBlock leftover;
         leftover.id = 0;
         leftover.start = remainingStart;
         leftover.size = remainingSize;
         leftover.isFree = true;
-        
-        blocks.insert(blocks.begin() + i + 1, leftover);
-        blocks[i].size = size;
+
+
+         // Insert leftover into vector
+        blocks.insert(blocks.begin() + blockIndex + 1, leftover);
+
+        // Rebuild free list
+        rebuildFreeList();
+
+    } else{
+        removeFromFreeList(block);
+        block->isFree = false;
+        block->id = blockId;
     }
 
-
-    blocks[i].isFree = false;
-    blocks[i].id = blockId;
-    
     successfulAllocations++;
     cout << "Allocated Block #" << blockId << " (" << size << " KB) [BEST-FIT]" << endl;
     return blockId;
@@ -311,54 +329,78 @@ int MemoryAllocator::allocateBuddySystem(int size){
 
     int requiredSize = nextPowerOf2(size);
 
-    int bestIndex = -1;
+    FreeListNode *current = freeListHead;
+    FreeListNode *bestNode = nullptr;
+
     int smallestSize = -1;
 
-    for (int i = 0; i < blocks.size(); i++) {
-        if (blocks[i].isFree && blocks[i].size >= requiredSize) {
-            // Check if block size is power of 2
-            if ((blocks[i].size & (blocks[i].size - 1)) == 0) {
-                if (bestIndex == -1 || blocks[i].size < smallestSize) {
-                    bestIndex = i;
-                    smallestSize = blocks[i].size;
-                }
+    while(current != nullptr){
+        MemoryBlock *block = current->block;
+
+        if(block->size >= requiredSize && (block->size &(block->size -1)) == 0){
+            if(bestNode == nullptr || block->size < smallestSize){
+                bestNode = current;
+                smallestSize = block->size;
             }
         }
+
+        current = current->next;
     }
 
     // No suitable block found
-    if (bestIndex == -1) {
+    if (bestNode == nullptr) {
         failedAllocations++;
         cout << "Cannot allocate " << size << " KB with Buddy System" << endl;
         return -1;
     }
 
 
-     // Split block until we get exactly requiredSize
-    int i = bestIndex;
-    while (blocks[i].size > requiredSize) {
-        int halfSize = blocks[i].size / 2;
+     
+    
+   // Use the best block
+    MemoryBlock* block = bestNode->block;
+
+    // Find block index in vector
+    int blockIndex = -1;
+    for (int i = 0; i < blocks.size(); i++) {
+        if (&blocks[i] == block) {
+            blockIndex = i;
+            break;
+        }
+    }
+
+    // Split block until we get exactly requiredSize
+    while (blocks[blockIndex].size > requiredSize) {
+        int halfSize = blocks[blockIndex].size / 2;
         
-        // Split: [Original] → [Left half][Right half]
+        // Save values before modifying
+        int currentStart = blocks[blockIndex].start;
+        
+        // Update left half
+        blocks[blockIndex].size = halfSize;
+        
+        // Create right buddy
         MemoryBlock rightBuddy;
         rightBuddy.id = 0;
-        rightBuddy.start = blocks[i].start + halfSize;
+        rightBuddy.start = currentStart + halfSize;
         rightBuddy.size = halfSize;
         rightBuddy.isFree = true;
         
-        // Update left half
-        blocks[i].size = halfSize;
-        
         // Insert right buddy
-        blocks.insert(blocks.begin() + i + 1, rightBuddy);
+        blocks.insert(blocks.begin() + blockIndex + 1, rightBuddy);
         
-        // Continue with left half
+        
     }
-    
+
+
     // Allocate the block
     int blockId = nextId++;
-    blocks[i].isFree = false;
-    blocks[i].id = blockId;
+    blocks[blockIndex].isFree = false;
+    blocks[blockIndex].id = blockId;
+    
+    // Rebuild free list after all splits
+    rebuildFreeList();
+
     
     successfulAllocations++;
     cout << "Allocated Block #" << blockId << " (" << requiredSize 

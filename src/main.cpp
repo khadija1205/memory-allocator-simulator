@@ -112,21 +112,17 @@ int main() {
                 int blockId = -1;
                 
                 switch(currentStrategy) {
-                    case 1:
-                        blockId = allocator.allocate(size); // First-Fit
-                        break;
-                    case 2:
-                        // You'll need to add allocateBestFit to your C++ allocator
-                        cout << "\033[1;33m(Using First-Fit - Best-Fit not implemented yet)\033[0m\n";
-                        blockId = allocator.allocate(size);
-                        break;
-                    case 3:
-                        // You'll need to add allocateBuddySystem to your C++ allocator
-                        cout << "\033[1;33m(Using First-Fit - Buddy System not implemented yet)\033[0m\n";
-                        blockId = allocator.allocate(size);
-                        break;
-                }
-                
+                            case 1:
+                                blockId = allocator.allocateFirstFit(size);
+                                break;
+                            case 2:
+                                blockId = allocator.allocateBestFit(size);
+                                break;
+                            case 3:
+                                blockId = allocator.allocateBuddySystem(size);
+                                break;
+                        }
+                                        
                 if (blockId != -1) {
                     cout << "\n";
                     allocator.show();
