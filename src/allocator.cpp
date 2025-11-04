@@ -5,6 +5,7 @@ using namespace std;
 
 
 MemoryAllocator::MemoryAllocator(int size){
+    
     totalsize = size;
     nextId = 1;
 
@@ -13,6 +14,12 @@ MemoryAllocator::MemoryAllocator(int size){
     successfulAllocations = 0;
     failedAllocations = 0;
 
+    freeListHead = nullptr;
+
+    blocks.clear();
+
+  
+
     MemoryBlock initialBlock;
     initialBlock.id = 0;
     initialBlock.start = 0;
@@ -20,6 +27,23 @@ MemoryAllocator::MemoryAllocator(int size){
     initialBlock.isFree = true;
 
     blocks.push_back(initialBlock);
+
+    
+
+   
+
+    rebuildFreeList();
+
+   
+}
+
+MemoryAllocator::~MemoryAllocator(){
+    FreeListNode *current = freeListHead;
+    while(current != nullptr){
+        FreeListNode *temp = current;
+        current = current->next;
+        delete temp;
+    }
 }
 
 
@@ -44,6 +68,95 @@ int MemoryAllocator::nextPowerOf2(int n){
 
 
 
+void MemoryAllocator::rebuildFreeList(){
+
+    
+
+    FreeListNode *current = freeListHead;
+    while(current != nullptr){
+        FreeListNode *temp = current;
+        current = current->next;
+        delete temp;
+    }
+
+
+
+    freeListHead = nullptr;
+
+    
+
+    FreeListNode *tail = nullptr;
+    
+
+
+
+
+    for (int i = 0; i < blocks.size(); i++){
+        if(blocks[i].isFree){
+
+ 
+            FreeListNode *newNode = new FreeListNode;
+            newNode->block = &blocks[i];
+            newNode->next = nullptr;
+
+
+            if(freeListHead == nullptr){
+                freeListHead = newNode;
+                tail = newNode;
+            } else {
+                tail->next = newNode;
+                tail = newNode;
+            }
+        }
+    }
+
+}
+
+
+
+void MemoryAllocator::addToFreeList(MemoryBlock* block){
+    FreeListNode *newNode = new FreeListNode;
+    newNode->block = block;
+    newNode->next = nullptr;
+
+    newNode->next = freeListHead;
+    freeListHead = newNode;
+}
+
+
+
+void MemoryAllocator::removeFromFreeList(MemoryBlock* block){
+    if(freeListHead == nullptr){
+        return;
+    }
+
+
+    // the block is at the head
+    if(freeListHead->block == block){
+        FreeListNode *temp = freeListHead;
+        freeListHead = freeListHead->next;
+        delete temp;
+        return;
+    }
+
+
+
+    // the block is somewhere in the middle or end
+    FreeListNode *current = freeListHead;
+    while(current->next != nullptr){
+        if(current->next->block == block){
+            FreeListNode *temp = current->next;
+            current->next = current->next->next;
+            delete temp;
+            return;
+        }
+        current = current->next;
+    }
+}
+
+
+
+
 
 // Allocate function 
 int MemoryAllocator::allocate(int size) {
@@ -59,41 +172,67 @@ int MemoryAllocator::allocateFirstFit(int size) {
 
     totalAllocations++;
 
-    // Find first free block that fits
-    for (int i = 0; i < blocks.size(); i++) {
-        if (blocks[i].isFree && blocks[i].size >= size) {
-            
+    FreeListNode* current = freeListHead;
+
+    while(current != nullptr){
+        MemoryBlock *block = current->block;
+
+        if(block->size >= size){
             int blockId = nextId++;
-            
-            // spliting
-            if (blocks[i].size > size) {
-                int remainingSize = blocks[i].size - size;
-                int remainingStart = blocks[i].start + size;
-                
+
+
+            if(block->size > size){
+                int blockIndex = -1;
+                for (int i = 0; i < blocks.size();i++){
+                    if(&blocks[i] == block){
+                        blockIndex = i;
+                        break;
+                    }
+                }
+
+
+                // SAVE ORIGINAL SIZE BEFORE MODIFYING!
+                int originalSize = blocks[blockIndex].size;
+                int originalStart = blocks[blockIndex].start;
+
+                blocks[blockIndex].isFree = false;
+                blocks[blockIndex].id = blockId;
+                blocks[blockIndex].size = size;
+
+
+                int remainingSize = originalSize - size;
+                int remainingStart = originalStart + size;
+
                 MemoryBlock leftover;
                 leftover.id = 0;
                 leftover.start = remainingStart;
                 leftover.size = remainingSize;
                 leftover.isFree = true;
-                
-                blocks.insert(blocks.begin() + i + 1, leftover);
-                blocks[i].size = size;
 
-                
+                // insert leftover into vector
+                blocks.insert(blocks.begin() + blockIndex + 1, leftover);
+
+                rebuildFreeList();
+            } else{
+                removeFromFreeList(block); 
+                block->isFree = false;
+                block->id = blockId; 
             }
-            
-            blocks[i].isFree = false;
-            blocks[i].id = blockId;
+
+           
 
             successfulAllocations++;
-            
-            cout << "Allocated Block #" << blockId << " (" << size << " KB)" << endl;
+             cout << "Allocated Block #" << blockId << " (" << size << " KB)" << endl;
             return blockId;
         }
+
+        // Move to next free block
+        current = current->next;
     }
-    
+        
+    // No suitable block found
     failedAllocations++;
-    cout << " Cannot allocate " << size << " KB!" << endl;
+    cout << "Cannot allocate " << size << " KB!" << endl;
     return -1;
 
 
@@ -247,7 +386,9 @@ bool MemoryAllocator::free(int blockId) {
                     j--;
                 }
             }
-            
+
+            rebuildFreeList();
+
             return true;
         }
     }

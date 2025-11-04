@@ -11,12 +11,19 @@ struct MemoryBlock {
     bool isFree;
 };
 
+struct FreeListNode {
+    MemoryBlock *block;
+    FreeListNode *next;
+};
 
 class MemoryAllocator {
     private:
         int totalsize;
         int nextId;
         vector<MemoryBlock> blocks;
+
+        // points to the first free block
+        FreeListNode *freeListHead;
 
         // statistics tracking
         int totalAllocations;
@@ -26,6 +33,12 @@ class MemoryAllocator {
 
         // helper function for buddy system
         int nextPowerOf2(int n);
+
+        void addToFreeList(MemoryBlock *block);
+
+        void removeFromFreeList(MemoryBlock *block);
+
+        void rebuildFreeList();
 
     public:
 
@@ -55,6 +68,9 @@ class MemoryAllocator {
         double getFragmentationPercent();
 
         void showStats();
+
+        // Destructor to clean up free list
+        ~MemoryAllocator();
 };
 
 #endif
