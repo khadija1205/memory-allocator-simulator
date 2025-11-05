@@ -60,7 +60,10 @@ void displayMenu() {
     cout << "4. Show Statistics\n";
     cout << "5. Change Strategy\n";
     cout << "6. Reset Memory\n";
-    cout << "7. Exit\n";
+    cout << "7. Start Recording\n";     
+    cout << "8. Stop Recording\n";       
+    cout << "9. Compare All Strategies\n"; 
+    cout << "10. Exit\n";                
     cout << "\n\033[1;33mChoice: \033[0m";
 }
 
@@ -179,8 +182,30 @@ int main() {
                 }
                 break;
             }
+
+            case 7: { // Start Recording
+                allocator.startRecording();
+                break;
+            }
+
+            case 8: { // Stop Recording
+                allocator.stopRecording();
+                break;
+            }
+
+            case 9: { // Compare All Strategies
+                if (allocator.getRecordedOperations().empty()) {
+                    cout << "\n\033[1;31m✗ No operations recorded!\033[0m\n";
+                    cout << "Please start recording (option 7), perform some operations,\n";
+                    cout << "then stop recording (option 8) before comparing.\n";
+                } else {
+                    vector<Operation> ops = allocator.getRecordedOperations();
+                    compareStrategies(ops, MEMORY_SIZE);
+                }
+                break;
+            }
             
-            case 7: { // Exit
+            case 10: { // Exit
                 cout << "\n\033[1;35m Thanks for using Memory Allocator!\033[0m\n";
                 running = false;
                 break;

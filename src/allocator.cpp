@@ -9,12 +9,17 @@ MemoryAllocator::MemoryAllocator(int size){
     totalsize = size;
     nextId = 1;
 
-    // Initialize statistics to zero
+    
     totalAllocations = 0;
     successfulAllocations = 0;
     failedAllocations = 0;
 
     freeListHead = nullptr;
+
+    isRecording = false;
+
+    // startin with empty recording list
+    recordedOperations.clear();
 
     blocks.clear();
 
@@ -44,6 +49,41 @@ MemoryAllocator::~MemoryAllocator(){
         current = current->next;
         delete temp;
     }
+}
+
+
+
+void MemoryAllocator::startRecording(){
+    isRecording = true;
+    recordedOperations.clear();
+    cout << "Recording Started - operations will be tracked\n"
+         << endl;
+}
+
+
+
+void MemoryAllocator::stopRecording(){
+    isRecording = false;
+    cout << "\n Recording stopped - " << recordedOperations.size() 
+         << " operations recorded\n" << endl;
+}
+
+
+
+vector<Operation> MemoryAllocator::getRecordedOperations(){
+    return recordedOperations;
+}
+
+
+void MemoryAllocator::clearRecording(){
+    recordedOperations.clear();
+    cout << "\n Recording cleared\n" << endl;
+}
+
+
+
+bool MemoryAllocator::getIsRecording(){
+    return isRecording;
 }
 
 
@@ -219,9 +259,15 @@ int MemoryAllocator::allocateFirstFit(int size) {
                 block->id = blockId; 
             }
 
+            
+
            
 
             successfulAllocations++;
+            if(isRecording){
+                Operation op("ALLOCATE", size);
+                recordedOperations.push_back(op);
+            }
              cout << "Allocated Block #" << blockId << " (" << size << " KB)" << endl;
             return blockId;
         }
@@ -316,7 +362,13 @@ int MemoryAllocator :: allocateBestFit(int size){
         block->id = blockId;
     }
 
+    
+
     successfulAllocations++;
+    if(isRecording){
+                Operation op("ALLOCATE", size);
+                recordedOperations.push_back(op);
+            }
     cout << "Allocated Block #" << blockId << " (" << size << " KB) [BEST-FIT]" << endl;
     return blockId;
 }
@@ -402,7 +454,13 @@ int MemoryAllocator::allocateBuddySystem(int size){
     rebuildFreeList();
 
     
+
+    
     successfulAllocations++;
+    if(isRecording){
+                Operation op("ALLOCATE", size);
+                recordedOperations.push_back(op);
+            }
     cout << "Allocated Block #" << blockId << " (" << requiredSize 
          << " KB for " << size << " KB request) [BUDDY]" << endl;
     
@@ -419,6 +477,11 @@ bool MemoryAllocator::free(int blockId) {
             blocks[i].id = 0;
             
             cout << "Freed Block #" << blockId << endl;
+
+            if (isRecording) {
+                Operation op("FREE", blockId, true);
+                recordedOperations.push_back(op); 
+            }
             
             // Merge adjacent free blocks
             for (int j = 0; j < blocks.size() - 1; j++) {
@@ -533,6 +596,9 @@ double MemoryAllocator::getFragmentationPercent() {
 
 
 void MemoryAllocator::showStats() {
+
+
+
     cout << "\n==========================" << endl;
     cout << "      Memory STATISTICS " << endl;
     cout << "\n==========================" << endl;
@@ -560,4 +626,101 @@ void MemoryAllocator::showStats() {
     cout << " [LOW]";
 }
 cout << endl;
+}
+
+
+
+
+
+void replayOperations(MemoryAllocator& allocator, vector<Operation>& operations, int strategy){
+    for (int i = 0; i < operations.size(); i++){
+        Operation &op = operations[i];
+
+
+        if(op.type == "ALLOCATE"){
+            if(strategy == 1){
+                allocator.allocateFirstFit(op.size);
+            } else if(strategy == 2){
+                allocator.allocateBestFit(op.size);
+            } else if(strategy == 3){
+                allocator.allocateBuddySystem(op.size);
+            }
+        } else if(op.type == "FREE"){
+                allocator.free(op.blockId);
+        }
+    }
+}
+
+
+
+void compareStrategies(vector<Operation>& operations, int memorySize){
+     cout << "\n";
+    cout << "========================================\n";
+    cout << "   FRAGMENTATION COMPARISON TEST        \n";
+    cout << "========================================\n";
+    cout << "\nReplaying " << operations.size() << " operations on all strategies...\n\n";
+
+
+    MemoryAllocator allocator1(memorySize);
+    MemoryAllocator allocator2(memorySize);
+    MemoryAllocator allocator3(memorySize);
+
+
+    // Replay operations on each strategy
+    cout << "Testing First-Fit...\n";
+    replayOperations(allocator1, operations, 1);
+    
+    cout << "\nTesting Best-Fit...\n";
+    replayOperations(allocator2, operations, 2);
+    
+    cout << "\nTesting Buddy System...\n";
+    replayOperations(allocator3, operations, 3);
+
+
+
+    // Display results for each strategy
+    cout << "\n========================================\n";
+    cout << "          FIRST-FIT RESULTS             \n";
+    cout << "========================================\n";
+    allocator1.show();
+    allocator1.showStats();
+    
+    cout << "\n========================================\n";
+    cout << "          BEST-FIT RESULTS              \n";
+    cout << "========================================\n";
+    allocator2.show();
+    allocator2.showStats();
+    
+    cout << "\n========================================\n";
+    cout << "        BUDDY SYSTEM RESULTS            \n";
+    cout << "========================================\n";
+    allocator3.show();
+    allocator3.showStats();
+
+
+
+    // Summary comparison table
+    cout << "\n========================================\n";
+    cout << "         COMPARISON SUMMARY             \n";
+    cout << "========================================\n";
+    cout << "\nStrategy          | Fragmentation | Free Memory | Free Blocks\n";
+    cout << "------------------|---------------|-------------|------------\n";
+    
+    printf("First-Fit         | %6.1f%%      | %4d KB      | %d\n",
+           allocator1.getFragmentationPercent(),
+           allocator1.getFreeMemory(),
+           allocator1.getFreeBlockCount());
+    
+    printf("Best-Fit          | %6.1f%%      | %4d KB      | %d\n",
+           allocator2.getFragmentationPercent(),
+           allocator2.getFreeMemory(),
+           allocator2.getFreeBlockCount());
+    
+    printf("Buddy System      | %6.1f%%      | %4d KB      | %d\n",
+           allocator3.getFragmentationPercent(),
+           allocator3.getFreeMemory(),
+           allocator3.getFreeBlockCount());
+    
+    cout << "\n";
+
 }
