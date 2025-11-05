@@ -2,6 +2,7 @@
 #define ALLOCATOR_H
 
 #include <vector>
+#include <string>
 using namespace std;
 
 struct MemoryBlock {
@@ -17,6 +18,17 @@ struct FreeListNode {
 };
 
 
+struct Operation {
+    string type;
+    int size;
+    int blockId;
+
+    // constructor for allocate operation
+    Operation(string t, int s) : type(t), size(s), blockId(-1) {};
+
+    // constructor for free operations
+    Operation(string t, int id, bool isFree) : type(t), size(-1), blockId(id) {};
+};
 
 class MemoryAllocator {
     private:
@@ -32,6 +44,9 @@ class MemoryAllocator {
         int successfulAllocations;
         int failedAllocations;
 
+        // store recorded operations
+        vector<Operation> recordedOperations;
+        bool isRecording;
 
         // helper function for buddy system
         int nextPowerOf2(int n);
@@ -71,8 +86,23 @@ class MemoryAllocator {
 
         void showStats();
 
-        // Destructor to clean up free list
+        void startRecording();
+
+        void stopRecording();
+
+        vector<Operation> getRecordedOperations();
+
+        void clearRecording();
+
+        bool getIsRecording();
+
+        // Destructor
         ~MemoryAllocator();
 };
+
+
+
+void replayOperations(MemoryAllocator& allocator, vector<Operation>& operations, int strategy);
+void compareStrategies(vector<Operation>& operations, int memorySize);
 
 #endif
